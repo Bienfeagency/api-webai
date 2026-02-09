@@ -1,0 +1,7 @@
+tests/
+node_modules/
+package-lock.json
+package.json
+.env
+.env.prod
+babel.config.js

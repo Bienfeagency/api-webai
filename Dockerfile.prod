@@ -1,0 +1,35 @@
+# Étape 1 : Build des dépendances
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --omit=dev
+
+COPY . .
+
+# Étape 2 : Image finale
+FROM node:20-alpine
+
+# Installer docker CLI pour pouvoir exécuter docker depuis le conteneur
+RUN apk add --no-cache docker-cli docker-cli-compose bash
+
+WORKDIR /app
+
+# Copier uniquement les fichiers nécessaires depuis le builder
+COPY --from=builder /app /app
+
+# Créer le dossier sandbox et donner les bonnes permissions
+RUN mkdir -p /app/sandbox
+
+# Créer utilisateur non-root pour la sécurité
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+
+# Changer le propriétaire de /app et du sandbox pour appuser
+RUN chown -R appuser:appgroup /app
+
+USER appuser
+
+EXPOSE 5000
+
+# Lancer le serveur Node.js
+CMD ["node", "index.js"]

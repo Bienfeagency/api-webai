@@ -1,0 +1,146 @@
+// routes/notificationRoutes.js
+import express from 'express';
+import authMiddleware from '../middlewares/authMiddleware.js';
+import notificationService from '../services/notification.service.js';
+import Notification from '../models/notification.js';
+
+const router = express.Router();
+
+// Toutes les routes nécessitent une authentification
+router.use(authMiddleware);
+// Récupérer les notifications de l'utilisateur connecté
+router.get('/', async (req, res) => {
+  try {
+    const { page = 1, limit = 20 } = req.query;
+    const offset = (page - 1) * limit;
+
+    // CORRECTION: Utiliser req.user.id pour récupérer uniquement les notifications de l'utilisateur connecté
+    const notifications = await notificationService.getUserNotifications(
+      req.user.id, // IMPORTANT: l'ID de l'utilisateur connecté
+      parseInt(limit),
+      offset
+    );
+    console.log('📊 Notifications retournées:', {
+      total: notifications.count,
+      forUser: req.user.id,
+      sample: notifications.rows.slice(0, 3).map(n => ({
+        id: n.id,
+        userId: n.userId,
+        title: n.title
+      }))
+    });
+    res.json({
+      success: true,
+      data: notifications
+    });
+  } catch (error) {
+    console.error('❌ Erreur récupération notifications:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la récupération des notifications'
+    });
+  }
+});
+
+// Récupérer les notifications non lues de l'utilisateur connecté
+router.get('/unread', async (req, res) => {
+  try {
+    // CORRECTION: Utiliser req.user.id
+    const notifications = await notificationService.getUnreadNotifications(req.user.id);
+
+    res.json({
+      success: true,
+      data: notifications
+    });
+  } catch (error) {
+    console.error('❌ Erreur récupération notifications non lues:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la récupération des notifications non lues'
+    });
+  }
+});
+
+// Marquer une notification comme lue (avec vérification de propriété)
+router.patch('/:id/read', async (req, res) => {
+  try {
+    // CORRECTION: Passer req.user.id pour vérifier la propriété
+    const notification = await notificationService.markAsRead(
+      req.params.id,
+      req.user.id
+    );
+
+    res.json({
+      success: true,
+      data: notification
+    });
+  } catch (error) {
+    console.error('❌ Erreur marquage notification comme lue:', error);
+    
+    if (error.message === 'Notification not found or access denied') {
+      return res.status(404).json({
+        success: false,
+        message: 'Notification non trouvée ou accès refusé'
+      });
+    }
+    
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors du marquage de la notification'
+    });
+  }
+});
+
+// Marquer toutes les notifications comme lues
+router.patch('/read-all', async (req, res) => {
+  try {
+    const unreadNotifications = await notificationService.getUnreadNotifications(req.user.id);
+    
+    for (const notification of unreadNotifications) {
+      await notificationService.markAsRead(notification.id, req.user.id);
+    }
+
+    res.json({
+      success: true,
+      message: 'Toutes les notifications ont été marquées comme lues',
+      count: unreadNotifications.length
+    });
+  } catch (error) {
+    console.error('❌ Erreur marquage toutes notifications:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors du marquage de toutes les notifications'
+    });
+  }
+});
+
+// Supprimer une notification
+router.delete('/:id', async (req, res) => {
+  try {
+    const notification = await Notification.findOne({
+      where: { id: req.params.id, userId: req.user.id }
+    });
+
+    if (!notification) {
+      return res.status(404).json({
+        success: false,
+        message: 'Notification non trouvée'
+      });
+    }
+
+    await notification.destroy();
+
+    res.json({
+      success: true,
+      message: 'Notification supprimée avec succès'
+    });
+  } catch (error) {
+    console.error('❌ Erreur suppression notification:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la suppression de la notification'
+    });
+  }
+});
+
+export default router;
