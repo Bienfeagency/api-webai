@@ -1,0 +1,11 @@
+{
+  "build": {
+    "builder": "DOCKERFILE",
+    "dockerfilePath": "Dockerfile.prod"
+  },
+  "deploy": {
+    "startCommand": "node index.js",
+    "healthcheckPath": "/health",
+    "healthcheckTimeout": 100
+  }
+}
