@@ -39,6 +39,8 @@ import cors from "cors";
 import { fileURLToPath } from 'url';
 import path from 'path';
 
+import runSeed from './scripts/run-seed.js';
+
 const app = express();
 
 // NOUVEAU: Création du serveur HTTP pour Socket.io
@@ -176,6 +178,20 @@ async function startServer() {
     // Synchroniser les modèles
     await sequelize.sync({ alter: true });
     console.log("✅ Database synchronized");
+
+    try {
+      const { User } = await import('./models/index.js');
+      const userCount = await User.count();
+
+      if (userCount === 0) {
+        console.log("🌱 DB vide, seed initial...");
+        await runSeed();
+      } else {
+        console.log("🌱 Seed déjà présent, skip");
+      }
+    } catch (err) {
+      console.error("❌ Erreur lors du seed automatique:", err);
+    }
 
     // Vérifier que les associations sont bien chargées
     const { User, SubscriptionPlan, UserSubscription, Notification } = await import('./models/index.js');
